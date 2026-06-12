@@ -47,4 +47,5 @@ yarn-error.log*
 .contentlayer
 
 
-.obsidian/
+data/.obsidian/
+data/.trash/
