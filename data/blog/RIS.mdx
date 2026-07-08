@@ -1,0 +1,91 @@
+Herkese merhaba, bugün sizlere kendi yaptığım, Python ile yazılmış olan ve üzerinde 2 haftadır uğraştığım init sistemini tanıtmak isterim.
+
+https://codeberg.org/javav12/ris
+
+# RIS
+
+**GNU/Linux için Python ile yazılmış olan aşırı minimal ve hafif bir init sistemidir.**
+
+Diğer init sistemlerinin aksine RIS'de servis başlatıcı gömülü değildir; kodu derleyecek olan kişinin servis başlatıcı/yöneticinin dosya yolunu programa girmesi gerekir.
+
+Bu özelliği sayesinde RIS **UNIX felsefesine** uyar (Tek bir iş yap ve onu en iyi şekilde yap).
+
+## Özellikler:
+
+### Komutlar:
+
+#### Pipe komutlar
+
+RIS komut almak için pipe kullanır (/var/run/ris.pipe). Bu pipe standart bir FIFO pipe'ıdır.
+
+- **rl0**: runlevel0 anlamına gelir, sistemi halt eder (kapatır).
+- **shutdown**: sistemi kapatır.
+- **poweroff**: sistemi kapatır.
+- **rl6**: runlevel6 anlamına gelir, sistemi yeniden başlatır.
+- **reboot**: sistemi yeniden başlatır.
+
+Yukarıdaki komutların hepsi echo ile çalıştırılabilir.
+
+#### kill (sinyal) komutları
+RIS ayrıca sinyalleri komut almak için kullanabilir:
+
+- **SIGTERM**: sistemi kapatır.
+- **SIGINT**: sistemi yeniden başlatır.
+
+Bu komutlar kill ile gönderilebilir.
+
+### LOG'lar
+
+RIS çalışma anında logları `` /var/run/ris.log `` altına kaydeder. Ama kapanmadan hemen önce logları `` /var/log/ris-[zaman-imzası].log `` olarak kopyalar.
+ 
+### Kurulum
+
+1. Depoyu klonlayın: `` git clone https://codeberg.org/javav12/ris ``
+2. Deponun olduğu klasöre girin: `` cd ris ``
+3. Servis başlatıcınızı yapın/kopyalayın; RIS dahili olarak servis başlatıcı ile gelmez, bu yüzden sizin yapmanız gerekecek.
+4. Servis başlatıcınızın dosya yolunu ` src/main.py ` dosyasındaki ` service_starter_pid = spawn("/bin/sh", ["sh", "-i"]) ` kısmını şu şekilde değiştirin: `service_starter_pid = spawn("program-yolu", ["program-adı", "-i"])`
+5. Kodu derleyin: `` sudo ./build.sh ``
+6. Bir hazırlık scripti yapın; RIS ilk açılışta en azından `/dev`, `/proc` ve `/sys` dizinlerinin mountlanmasını ister, bunun için `example/prepare.sh` dosyasını hedef cihaza `/init` olarak kopyalayın (veya kendinizinkini yapın).
+7. Derlenmiş kodu ` /sbin/ris ` altına kopyalayın (derlenmiş dosya build klasöründe).
+8. Keyfini çıkarın.
+
+### Katkıda bulunma
+
+Katkıda bulunmak için eksik/yanlış gördüğünüz şeyleri düzeltip PR açabilirsiniz; ancak kodunuz test edilmeli ve ruff'dan geçmeli: ` ruff check ` (mecbursanız `#noqa: uyarıkodu` ile linterı o satırlık susturabilirsiniz).
+
+### Uyarılar
+
+Kod hala yapılma aşamasında olup, daha beta bile sayamayız. Ana makinenizde denemeyin, her zaman bir VM'de deneyin.
+
+### Çalışma diyagramı
+
+<pre>
+<small>
+                                           ┌───────────────────────────────────────────────────────────────────────────────────────────┐
+                                           │                                                                                           │
+                                           │                                                                                           │
+                                           │                                                                                           │
+                                           │               LOGS                                                                        │
+                                           │           ┌─────────────────────────────────────────────────────────────────────────────┐ │
+                                           │           │                                                                             │ │
+                                           │           │     Runtime logs                         Archived Logs                      │ │
+ KERNEL Space    ┌─────────────────────────┘           │     ┌────────────────────┐              ┌──────────────────────────────┐    │ │
+┌──────────────┐ │                                  ┌──│───► │  /var/run/ris.log  │           ┌─►│ /var/log/ris-[timestamp].log │    │ │
+│              │ │           ┌────────────┐         │  │     └────────────┬───────┘           │  └──────────────────────────────┘    │ │
+│  ┌────────┐  │ │     ┌────►│ Prepare.sh │         │  │                  │                   │                                      │ │
+│  │ KERNEL ├──│─│─────┘     │   (/init)  │       write│                  └────── Archive ────┘                                      │ │
+│  └────────┘  │ │           └─┬──────────┘         │  │                                                                             │ │
+│              │ │             │                    │  └─────────────────────────────────────────────────────────────────────────────┘ │
+└──────────────┘ │             └─── exec ────────┐  │                                                                                  │
+                 │                            ┌──▼──┴─┐                                                                                │
+                 │┌─────────┐           ┌────►│  RIS  │                                                                                │
+                 ││ Command │           │     └───┬───┘                                                                                │
+                 │└─┬───────┘           │         │        ┌────────────────────────────┐                                              │
+                 │  │                   │         └──────► │ Service Starter (external) │                                              │
+                 │  │      FIFO PIPE    │                  └────────────────────────────┘                                              │
+                 │  │      ┌────────────┴──────┐                                                                                       │
+                 │  └────► │ /var/run/ris.pipe │                                                                                       │
+                 │         └───────────────────┘                                                                                       │
+                 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+</small>
+</pre>
